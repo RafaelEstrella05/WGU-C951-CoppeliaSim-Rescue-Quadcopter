@@ -24,12 +24,12 @@ Object Parameters:
         - beta: 0.00
         - gamma: 0.00
 
-- Bill
+- Survivor
+    - size:
+        - x: 0.5
+        - y: 0.5
+        - z: 2.00
     - Position:
         - x: -7.850
-        - y: +6.500 
-        - z: +0.200
-    - Orientation:
-        - alpha: 0.00
-        - beta: 0.00
-        - gamma: +170.00
+        - y: +6.500
+        - z: +1.00
