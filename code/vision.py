@@ -17,10 +17,10 @@ def sysCall_init():
     global graph_red;
     global graph_green;
     global graph_blue;
-    graph = sim.getObject('/Graph');
+    graph = sim.getObject('/VisionGraph');
     graph_red = sim.addGraphStream(graph, 'red', '-', 0, [1,0,0])
-    graph_green = sim.addGraphStream(graph, 'green', '-', 0, [0,1,0])
-    graph_blue = sim.addGraphStream(graph, 'blue', '-', 0, [0,0,1])
+    #graph_green = sim.addGraphStream(graph, 'green', '-', 0, [0,1,0])
+    #graph_blue = sim.addGraphStream(graph, 'blue', '-', 0, [0,0,1])
 
 
     pass
@@ -54,8 +54,8 @@ def sysCall_sensing():
 
     #plot the values
     sim.setGraphStreamValue(graph, graph_red, red);
-    sim.setGraphStreamValue(graph, graph_green, green);
-    sim.setGraphStreamValue(graph, graph_blue, blue);
+    #sim.setGraphStreamValue(graph, graph_green, green);
+    #sim.setGraphStreamValue(graph, graph_blue, blue);
 
     pass
 
