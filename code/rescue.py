@@ -17,17 +17,33 @@ def sysCall_init():
     graph = sim.getObject('/VisionGraph')
     graph_red = sim.addGraphStream(graph, 'red', '-', 0, [1,0,0])
 
-    # Initialize Proximity Sensor and Graph
+    # Initialize Proximity Sensor and Graph (renamed to 'Proximity_sensor')
     global proximity_sensor
     global proximity_graph
     global proximity_stream
-    proximity_sensor = sim.getObject('/Quadcopter/Proximity_sensor')
+    proximity_sensor = sim.getObject('/Quadcopter/Proximity_sensor')  # Changed name here
     proximity_graph = sim.getObject('/ProximityGraph')
     proximity_stream = sim.addGraphStream(proximity_graph, 'proximity', '-', 0, [0,1,0])
 
+    # Initialize Quadcopter target (position)
+    global target
+    target = sim.getObject('..')  # Ensuring target is set correctly
+
 def sysCall_actuation():
-    # Actuation code here
-    pass
+    # Proximity sensor check
+    proximity_result = sim.readProximitySensor(proximity_sensor)
+    proximity_state = proximity_result[0]
+    proximity_distance = proximity_result[1] if proximity_state > 0 else 0
+    print("Proximity Detected, Distance: ", proximity_distance) if proximity_state > 0 else print("No Proximity Detection")
+
+    if proximity_state > 0 and proximity_distance > 1.5:
+        # Move forward by 0.5 units
+        position = sim.getObjectPosition(target, -1)
+        position[0] += 0.05  # Moving forward by 0.5 on X-axis (or adjust according to direction)
+        sim.setObjectPosition(target, -1, position)
+        print("Moving forward by 0.05 units. New position: ", position)
+    else:
+        print("Stopping movement. Proximity Distance: ", proximity_distance)
 
 def sysCall_sensing():
     # Vision sensor code
@@ -44,22 +60,18 @@ def sysCall_sensing():
     blue = avg_blue / avg
     
     # Print red, green, blue values
-    print("Red: ", red, "Green: ", green, "Blue: ", blue)
+    #print("Red: ", red, "Green: ", green, "Blue: ", blue)
     
     # Plot red value on VisionGraph
     sim.setGraphStreamValue(graph, graph_red, red)
 
-    # Proximity sensor code
-    proximity_state, proximity_distance = sim.readProximitySensor(proximity_sensor)
+    # Proximity sensor graphing (proximity_distance declared here)
+    proximity_result = sim.readProximitySensor(proximity_sensor)
+    proximity_state = proximity_result[0]
+    proximity_distance = proximity_result[1] if proximity_state > 0 else 0
+    sim.setGraphStreamValue(proximity_graph, proximity_stream, proximity_distance)
     
-    if proximity_state > 0:  # If the proximity sensor detects something
-        # Plot the proximity sensor value
-        sim.setGraphStreamValue(proximity_graph, proximity_stream, proximity_distance)
-        print("Proximity Detected, Distance: ", proximity_distance)
-    else:
-        # No detection, plot a default value
-        sim.setGraphStreamValue(proximity_graph, proximity_stream, 0)
-        print("No Proximity Detection")
+    #print("Proximity Detected, Distance: ", proximity_distance) if proximity_state > 0 else print("No Proximity Detection")
 
 def sysCall_cleanup():
     # Clean-up code here
