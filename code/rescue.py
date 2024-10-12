@@ -36,7 +36,7 @@ def sysCall_actuation():
     proximity_distance = proximity_result[1] if proximity_state > 0 else 0
     print("Proximity Detected, Distance: ", proximity_distance) if proximity_state > 0 else print("No Proximity Detection")
 
-    if proximity_state > 0 and proximity_distance > 1.5:
+    if proximity_distance > 1.5 or proximity_state == 0:
         # Move forward by 0.5 units
         position = sim.getObjectPosition(target, -1)
         position[0] += 0.05  # Moving forward by 0.5 on X-axis (or adjust according to direction)
@@ -54,6 +54,9 @@ def sysCall_sensing():
 
     # Normalize the values
     avg = (avg_red * avg_red + avg_green * avg_green + avg_blue * avg_blue)
+
+    if avg == 0:
+        avg = 0.00001 #to avoid division by zero
     
     red = avg_red / avg
     green = avg_green / avg
