@@ -20,16 +20,21 @@ def sysCall_init():
     vision3 = sim.getObject('/Quadcopter/Vision_sensor[3]')  # Side sensor 2
 
     # Initialize Vision Graphs
-    global graph, graph_red, graph_red1, graph_red2, graph_red3
+    global graph, graph_1, graph_2, graph_3, graph_red, graph_red1, graph_red2, graph_red3
     graph = sim.getObject('/VisionGraph')
+    graph_1 = sim.getObject('/VisionGraph[1]')
+    graph_2 = sim.getObject('/VisionGraph[2]')
+    graph_3 = sim.getObject('/VisionGraph[3]')
+                            
+
     graph_red = sim.addGraphStream(graph, 'Vision Front', '-', 0, [1, 0, 0])   # Front sensor red
-    graph_red1 = sim.addGraphStream(graph, 'Vision Left', '-', 0, [0, 1, 0])   # Left sensor red
-    graph_red2 = sim.addGraphStream(graph, 'Vision Right', '-', 0, [0, 0, 1])  # Right sensor red
-    graph_red3 = sim.addGraphStream(graph, 'Vision Back', '-', 0, [1, 1, 0])   # Back sensor red
+    graph_red1 = sim.addGraphStream(graph_1, 'Vision Left', '-', 0, [1, 0, 0])   # Left sensor red
+    graph_red2 = sim.addGraphStream(graph_2, 'Vision Right', '-', 0, [1, 0, 0])  # Right sensor red
+    graph_red3 = sim.addGraphStream(graph_3, 'Vision Back', '-', 0, [1, 0, 0])   # Back sensor red
 
     # Initialize Proximity Sensors
     global proximity_sensor, proximity_sensor1, proximity_sensor2, proximity_sensor3
-    global proximity_graph, proximity_stream, proximity_stream1, proximity_stream2, proximity_stream3
+    global proximity_graph, proximity_graph_1, proximity_graph_2, proximity_graph_3, proximity_stream, proximity_stream1, proximity_stream2, proximity_stream3
     proximity_sensor = sim.getObject('/Quadcopter/Proximity_sensor')  # Front sensor
     proximity_sensor1 = sim.getObject('/Quadcopter/Proximity_sensor[1]')  # Left sensor
     proximity_sensor2 = sim.getObject('/Quadcopter/Proximity_sensor[2]')  # Right sensor
@@ -37,10 +42,14 @@ def sysCall_init():
 
     # Initialize Proximity Graphs
     proximity_graph = sim.getObject('/ProximityGraph')
-    proximity_stream = sim.addGraphStream(proximity_graph, 'Proximity Front', '-', 0, [1, 0, 0])   # Front sensor graph
-    proximity_stream1 = sim.addGraphStream(proximity_graph, 'Proximity Left', '-', 0, [0, 1, 0])   # Left sensor graph
-    proximity_stream2 = sim.addGraphStream(proximity_graph, 'Proximity Right', '-', 0, [0, 0, 1])  # Right sensor graph
-    proximity_stream3 = sim.addGraphStream(proximity_graph, 'Proximity Back', '-', 0, [1, 1, 0])   # Back sensor graph
+    proximity_graph_1 = sim.getObject('/ProximityGraph[1]')
+    proximity_graph_2 = sim.getObject('/ProximityGraph[2]')
+    proximity_graph_3 = sim.getObject('/ProximityGraph[3]')
+
+    proximity_stream = sim.addGraphStream(proximity_graph, 'Proximity Front', '-', 0, [0, 1, 0])   # Front sensor graph
+    proximity_stream1 = sim.addGraphStream(proximity_graph_1, 'Proximity Left', '-', 0, [0, 1, 0])   # Left sensor graph
+    proximity_stream2 = sim.addGraphStream(proximity_graph_2, 'Proximity Right', '-', 0, [0, 1, 0])  # Right sensor graph
+    proximity_stream3 = sim.addGraphStream(proximity_graph_3, 'Proximity Back', '-', 0, [0, 1, 0])   # Back sensor graph
 
     # Initialize Quadcopter target (position)
     global target
@@ -85,6 +94,7 @@ def sysCall_actuation():
         position = sim.getObjectPosition(target, -1)
         #position[0] += 0.02
 
+        '''
         # Change position based on the orientation of the quadcopter
         if copter_direction == 0:  # North
             position[0] += copter_speed
@@ -96,6 +106,7 @@ def sysCall_actuation():
             position[1] += copter_speed
 
         sim.setObjectPosition(target, -1, position)
+        '''
     else:
         print("Stopping movement. Proximity Distance (Front): ", proximity_distance)
 
@@ -106,6 +117,8 @@ def sysCall_actuation():
         print("New Copter Direction: ", copter_direction)
 
 def sysCall_sensing():
+
+
     # Vision sensor code for front sensor
     result, packet1, packet2 = sim.readVisionSensor(vision)
     avg_red = packet1[11]
@@ -123,15 +136,15 @@ def sysCall_sensing():
     # Plot for other vision sensors
     result1, packet11, packet21 = sim.readVisionSensor(vision1)
     red1 = packet11[11] / (packet11[11] * packet11[11] + packet11[12] * packet11[12] + packet11[13] * packet11[13] + 0.00001)
-    sim.setGraphStreamValue(graph, graph_red1, red1)
+    sim.setGraphStreamValue(graph_1, graph_red1, red1)
 
     result2, packet12, packet22 = sim.readVisionSensor(vision2)
     red2 = packet12[11] / (packet12[11] * packet12[11] + packet12[12] * packet12[12] + packet12[13] * packet12[13] + 0.00001)
-    sim.setGraphStreamValue(graph, graph_red2, red2)
+    sim.setGraphStreamValue(graph_2, graph_red2, red2)
 
     result3, packet13, packet23 = sim.readVisionSensor(vision3)
     red3 = packet13[11] / (packet13[11] * packet13[11] + packet13[12] * packet13[12] + packet13[13] * packet13[13] + 0.00001)
-    sim.setGraphStreamValue(graph, graph_red3, red3)
+    sim.setGraphStreamValue(graph_3, graph_red3, red3)
 
     # Proximity sensor graphing for all proximity sensors
     proximity_result = sim.readProximitySensor(proximity_sensor)
@@ -140,15 +153,15 @@ def sysCall_sensing():
 
     proximity_result1 = sim.readProximitySensor(proximity_sensor1)
     proximity_distance1 = proximity_result1[1] if proximity_result1[0] > 0 else 0
-    sim.setGraphStreamValue(proximity_graph, proximity_stream1, proximity_distance1)
+    sim.setGraphStreamValue(proximity_graph_1, proximity_stream1, proximity_distance1)
 
     proximity_result2 = sim.readProximitySensor(proximity_sensor2)
     proximity_distance2 = proximity_result2[1] if proximity_result2[0] > 0 else 0
-    sim.setGraphStreamValue(proximity_graph, proximity_stream2, proximity_distance2)
+    sim.setGraphStreamValue(proximity_graph_2, proximity_stream2, proximity_distance2)
 
     proximity_result3 = sim.readProximitySensor(proximity_sensor3)
     proximity_distance3 = proximity_result3[1] if proximity_result3[0] > 0 else 0
-    sim.setGraphStreamValue(proximity_graph, proximity_stream3, proximity_distance3)
+    sim.setGraphStreamValue(proximity_graph_3, proximity_stream3, proximity_distance3)
 
 def sysCall_cleanup():
     # Clean-up code here
