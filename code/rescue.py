@@ -2,15 +2,22 @@ from hashlib import sha256
 
 #script that controls the quadcopter to detect survivors of a flood disaster
 
-# dependencies: pyzmq, cbor2
-#py -m pip install pyzmq cbor2
-
 def sysCall_init():
     sim = require('sim')
 
+    #MapTarget (sphere) used to select where the quadcopter target should go to
+    global map_target
+    map_target = sim.getObject('/MapTarget')
+
+    global quadcopter
+    quadcopter = sim.getObject('/Quadcopter')
+
+    #intialize the quadcopter position to the map target position
+    sim.setObjectPosition(quadcopter, -1, sim.getObjectPosition(map_target, -1))
+
 
     global manual_mode #moves by itself or moved by the user with wsad keys
-    manual_mode = True
+    manual_mode = False
 
     global x_min, x_max, y_min, y_max
     x_min = -37.250
@@ -18,8 +25,8 @@ def sysCall_init():
     y_min = -22.250
     y_max = 17.250
 
-    global wall_dist_threshold
-    wall_dist_threshold = 1
+    global hit_threshold
+    hit_threshold = 0.05
 
 
     global survivors
@@ -132,6 +139,7 @@ def sysCall_init():
     target = sim.getObject('..')  # Ensuring target is set correctly
 
 def sysCall_actuation():
+    global sim
     global copter_direction
 
     # Proximity sensor check for front
@@ -159,41 +167,69 @@ def sysCall_actuation():
     #print distance to compare
     #print("Distance to Compare: ", distance_to_compare[copter_direction])
 
-    if (distance_to_compare[copter_direction] < 300 and distance_to_compare[copter_direction] > 1.5) or distance_to_compare[copter_direction] == 0:
-        
-        # Move forward by 0.5 units
-        position = sim.getObjectPosition(target, -1)
-        #position[0] += 0.02
+    #is_target_within = is_target_within_bounds(sim.getObjectPosition(target, -1)[0], sim.getObjectPosition(target, -1)[1])
 
-        if not manual_mode:
-            # Change position based on the orientation of the quadcopter
-            if copter_direction == 0:  # North
-                position[0] += copter_speed
-            elif copter_direction == 1:  # East
-                position[1] -= copter_speed
-            elif copter_direction == 2:  # South
-                position[0] -= copter_speed
-            elif copter_direction == 3:  # West
-                position[1] += copter_speed
-            
+    # if the quadcopter target position is at the map target position(or within margin), then select the next target depending on the direction of the quadcopter
+    # if the direction is front, select the target 1 unit in the x direction
+    # if the direction is right, select the target 1 unit in the y direction negatively
+    # if the direction is back, select the target 1 unit in the x direction negatively
+    # if the direction is left, select the target 1 unit in the y direction
 
-            sim.setObjectPosition(target, -1, position)
-        
+    target_position = sim.getObjectPosition(target, -1)
+    map_target_position = sim.getObjectPosition(map_target, -1)
+
+    #print("Target Position (Rounded): ", int(round(target_position[0])), int(round(target_position[1])))   
+    #print("Map Target Position (Rounded): ", int(round(map_target_position[0])), int(round(map_target_position[1])))
+
+    abs_diff_x = abs(int(round(target_position[0])) - int(round(map_target_position[0])))
+    abs_diff_y = abs(int(round(target_position[1])) - int(round(map_target_position[1])))
+    #print("Abs Diff X: ", abs_diff_x, ", Abs Diff Y: ", abs_diff_y)
+    
+    # if the quadcopter target position is at the map target position, then select the next target depending on the direction of the quadcopter
+    if abs_diff_x <= hit_threshold and abs_diff_y <= hit_threshold:
+        if copter_direction == 0:
+            new_target_position = [map_target_position[0] + 1, map_target_position[1], map_target_position[2]]  # Move North
+        elif copter_direction == 1:
+            new_target_position = [map_target_position[0] , map_target_position[1] - 1, map_target_position[2]]  # Move East
+        elif copter_direction == 2:
+            new_target_position = [map_target_position[0] - 1, map_target_position[1], map_target_position[2]]  # Move South
+        elif copter_direction == 3:
+            new_target_position = [map_target_position[0], map_target_position[1] + 1 , map_target_position[2]]  # Move West
+
+        within_bounds = is_target_within_bounds(new_target_position[0], new_target_position[1])
+        obstacle_detected = distance_to_compare[copter_direction] != 0 and distance_to_compare[copter_direction] < 3
+        #print("Within Bounds: ", within_bounds)
+        #print("Obstacle Detected: ", distance_to_compare[copter_direction], " direction: ", copter_direction)
+
+        # if the map point is outside of the bounds, then don't move the map target
+        if within_bounds and not obstacle_detected:
+            # Set new position of the map target
+            sim.setObjectPosition(map_target, -1, new_target_position)
+            #print("New Map Target Position: ", new_target_position)
+        else:
+            #print("Map Target Out of Bounds")
+            print();
+
+            #now lets choose the next direction clockwise from the current direction
+            copter_direction = (copter_direction + 1) % 4
+
     else:
-        #print("Stopping movement. Proximity Distance (Front): ", proximity_distance)
+        #move the quadcopter to the map target position by the copter_speed
+        new_quad_position = sim.getObjectPosition(target, -1)
+        new_quad_position[0] = new_quad_position[0] + copter_speed if new_quad_position[0] < map_target_position[0] else new_quad_position[0] - copter_speed if new_quad_position[0] > map_target_position[0] else new_quad_position[0]
+        new_quad_position[1] = new_quad_position[1] + copter_speed if new_quad_position[1] < map_target_position[1] else new_quad_position[1] - copter_speed if new_quad_position[1] > map_target_position[1] else new_quad_position[1]
+        sim.setObjectPosition(target, -1, new_quad_position)
 
-        # Set the new direction of the quadcopter
-        copter_direction = (copter_direction + 1) % 4
 
-        # print new direction
-        #print("New Copter Direction: ", copter_direction)
+def is_target_within_bounds(x, y):
+    return x_min <= x <= x_max and y_min <= y <= y_max
 
 def sysCall_sensing():
 
     global survivors
     global red_min_thres
     global sensor_names
-    global wall_dist_threshold
+    global hit_threshold
     
 
     # if survivors has not been initialized, then initialize it
