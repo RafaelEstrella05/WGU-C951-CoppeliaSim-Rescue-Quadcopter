@@ -83,10 +83,26 @@ def sysCall_init():
     graph_3 = sim.getObject('/Graphs/VisionGraph[3]')
                             
 
-    graph_red = sim.addGraphStream(graph, 'Vision Front', '-', 0, [1, 0, 0])   # Front sensor red
-    graph_red1 = sim.addGraphStream(graph_1, 'Vision Left', '-', 0, [1, 0, 0])   # Left sensor red
-    graph_red2 = sim.addGraphStream(graph_2, 'Vision Right', '-', 0, [1, 0, 0])  # Right sensor red
-    graph_red3 = sim.addGraphStream(graph_3, 'Vision Back', '-', 0, [1, 0, 0])   # Back sensor red
+    graph_red = sim.addGraphStream(graph, 'Vision Front Red', '-', 0, [1, 0, 0])   # Front sensor red
+    graph_red1 = sim.addGraphStream(graph_1, 'Vision Left Red', '-', 0, [1, 0, 0])   # Left sensor red
+    graph_red2 = sim.addGraphStream(graph_2, 'Vision Right Red', '-', 0, [1, 0, 0])  # Right sensor red
+    graph_red3 = sim.addGraphStream(graph_3, 'Vision Back Red', '-', 0, [1, 0, 0])   # Back sensor red
+
+    #graph the green values
+    global graph_green, graph_green1, graph_green2, graph_green3
+    graph_green = sim.addGraphStream(graph, 'Vision Front Green', '-', 0, [0, 1, 0])   # Front sensor green
+    graph_green1 = sim.addGraphStream(graph_1, 'Vision Left Green', '-', 0, [0, 1, 0])   # Left sensor green
+    graph_green2 = sim.addGraphStream(graph_2, 'Vision Right Green', '-', 0, [0, 1, 0])  # Right sensor green
+    graph_green3 = sim.addGraphStream(graph_3, 'Vision Back Green', '-', 0, [0, 1, 0])   # Back sensor green
+
+    #graph the blue values
+    global graph_blue, graph_blue1, graph_blue2, graph_blue3
+    graph_blue = sim.addGraphStream(graph, 'Vision Front Blue', '-', 0, [0, 0, 1])   # Front sensor blue
+    graph_blue1 = sim.addGraphStream(graph_1, 'Vision Left Blue', '-', 0, [0, 0, 1])   # Left sensor blue
+    graph_blue2 = sim.addGraphStream(graph_2, 'Vision Right Blue', '-', 0, [0, 0, 1])  # Right sensor blue
+    graph_blue3 = sim.addGraphStream(graph_3, 'Vision Back Blue', '-', 0, [0, 0, 1])   # Back sensor blue
+
+
 
     # Initialize Proximity Sensors
     global proximity_sensor, proximity_sensor1, proximity_sensor2, proximity_sensor3
@@ -190,22 +206,38 @@ def sysCall_sensing():
     avg = avg if avg != 0 else 0.00001  # to avoid division by zero
 
     red = avg_red / avg
+    green = avg_green / avg
+    blue = avg_blue / avg
 
     # Plot red value on VisionGraph for the front sensor
     sim.setGraphStreamValue(graph, graph_red, red)
+    sim.setGraphStreamValue(graph, graph_green, green)
+    sim.setGraphStreamValue(graph, graph_blue, blue)
 
     # Plot for other vision sensors
     result1, packet11, packet21 = sim.readVisionSensor(vision1)
     red1 = packet11[11] / (packet11[11] * packet11[11] + packet11[12] * packet11[12] + packet11[13] * packet11[13] + 0.00001)
+    green1 = packet11[12] / (packet11[11] * packet11[11] + packet11[12] * packet11[12] + packet11[13] * packet11[13] + 0.00001)
+    blue1 = packet11[13] / (packet11[11] * packet11[11] + packet11[12] * packet11[12] + packet11[13] * packet11[13] + 0.00001)
     sim.setGraphStreamValue(graph_1, graph_red1, red1)
+    sim.setGraphStreamValue(graph_1, graph_green1, green1)
+    sim.setGraphStreamValue(graph_1, graph_blue1, blue1)
 
     result2, packet12, packet22 = sim.readVisionSensor(vision2)
     red2 = packet12[11] / (packet12[11] * packet12[11] + packet12[12] * packet12[12] + packet12[13] * packet12[13] + 0.00001)
+    green2 = packet12[12] / (packet12[11] * packet12[11] + packet12[12] * packet12[12] + packet12[13] * packet12[13] + 0.00001)
+    blue2 = packet12[13] / (packet12[11] * packet12[11] + packet12[12] * packet12[12] + packet12[13] * packet12[13] + 0.00001)
     sim.setGraphStreamValue(graph_2, graph_red2, red2)
+    sim.setGraphStreamValue(graph_2, graph_green2, green2)
+    sim.setGraphStreamValue(graph_2, graph_blue2, blue2)
 
     result3, packet13, packet23 = sim.readVisionSensor(vision3)
     red3 = packet13[11] / (packet13[11] * packet13[11] + packet13[12] * packet13[12] + packet13[13] * packet13[13] + 0.00001)
+    green3 = packet13[12] / (packet13[11] * packet13[11] + packet13[12] * packet13[12] + packet13[13] * packet13[13] + 0.00001)
+    blue3 = packet13[13] / (packet13[11] * packet13[11] + packet13[12] * packet13[12] + packet13[13] * packet13[13] + 0.00001)
     sim.setGraphStreamValue(graph_3, graph_red3, red3)
+    sim.setGraphStreamValue(graph_3, graph_green3, green3)
+    sim.setGraphStreamValue(graph_3, graph_blue3, blue3)
 
     # Proximity sensor graphing for all proximity sensors
     proximity_result = sim.readProximitySensor(proximity_sensor)
@@ -238,6 +270,8 @@ def sysCall_sensing():
     mins = [min_0, min_1, min_2, min_3]
     proximities = [proximity_distance, proximity_distance1, proximity_distance2, proximity_distance3]
     reds = [red, red1, red2, red3]
+    greens = [green, green1, green2, green3]
+    blues = [blue, blue1, blue2, blue3]
 
     for i in range(4):
         if analysing_proximity[i]:
@@ -300,7 +334,7 @@ def sysCall_sensing():
                     mins[i] = -1
 
         if not analysing_proximity[i]:
-            if reds[i] >= red_min_thres:
+            if reds[i] >= red_min_thres and greens[i] < reds[i] * 0.5 and blues[i] < reds[i] * 0.5:
 
                 trigger_values[i] = reds[i]
                 analysing_proximity[i] = True
