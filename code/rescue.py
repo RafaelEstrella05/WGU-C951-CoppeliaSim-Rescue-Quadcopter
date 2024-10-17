@@ -55,7 +55,7 @@ def sysCall_init():
     copter_speed = 0.05
 
     global copter_direction
-    copter_direction = 1  # initialize the direction of the quadcopter to north, 0 = North, 1 = East, 2 = South, 3 = West
+    copter_direction = 0  # initialize the direction of the quadcopter to north, 0 = North, 1 = East, 2 = South, 3 = West
 
     # Initialize Vision Sensors
     global vision, vision1, vision2, vision3
@@ -221,54 +221,76 @@ def sysCall_sensing():
     global count_0, count_1, count_2, count_3
     global min_0, min_1, min_2, min_3
 
-    if analysing_proximity_0:
-        #print("Analysing Proximity Zero: ", count_0)
-        count_0 += 1
+    analysing_proximity = [analysing_proximity_0, analysing_proximity_1, analysing_proximity_2, analysing_proximity_3]
+    counts = [count_0, count_1, count_2, count_3]
+    mins = [min_0, min_1, min_2, min_3]
+    proximities = [proximity_distance, proximity_distance1, proximity_distance2, proximity_distance3]
+    reds = [red, red1, red2, red3]
 
-        if count_0 < 15:
-            #print("Count Zero: ", count_0)
-            #print("--min_0: ", min_0)
+    for i in range(4):
+        if analysing_proximity[i]:
+            counts[i] += 1
 
-
-            #if min_0 is -1, then set it to the current proximity sensor value
-            if min_0 == -1 and proximity_distance != 0:
-                min_0 = proximity_distance
-
-                #print("First Min_0: ", min_0)
-            else:
-                #if the current proximity sensor value is less than the min_0 value, then set min_0 to the current proximity sensor value
-                if proximity_distance < min_0 and proximity_distance != 0:
-                    min_0 = proximity_distance
-                    #print("New Min_0: ", min_0)
-            
-
-        else:
-            analysing_proximity_0 = False
-            count_0 = 0
-            #print("Final Proximity (Min_0): ", min_0)
-
-            if min_0 != -1 and min_0 < 7:
-                #get the current position of the quadcopter
-                quadcopter_position = sim.getObjectPosition(target, -1)
-                #print("Quadcopter Position: ", quadcopter_position)
-
-                new_x = round(quadcopter_position[0] + min_0)
-                new_y = round(quadcopter_position[1])
-                min_0 = -1
-                #print("Survivor GPS Approximate Location Zero: ", new_x, ", ", new_y)
-
-                #add the survivor to the hashmap if it is not already in the hashmap
-                if not survivors.contains(new_x, new_y):
-                    survivors.add(new_x, new_y)
-                    print("New Survivor Added to HashMap - Location: ", new_x, ", ", new_y)
+            if counts[i] < 15:
+                if mins[i] == -1 and proximities[i] != 0:
+                    mins[i] = proximities[i]
                 else:
-                    print("Survivor Already Detected Zero: ", new_x, ", ", new_y)
+                    if proximities[i] < mins[i] and proximities[i] != 0:
+                        mins[i] = proximities[i]
+            else:
+                analysing_proximity[i] = False
+                counts[i] = 0
 
-    if not analysing_proximity_0:
-        #print("Red Value 0: ", red);
-        if red > red_min_thres and red < red_max_thres:
-            #print("Potential Survivor Detected Zero, Scanning ...")
-            analysing_proximity_0 = True
+                if mins[i] != -1 and mins[i] < 7:
+                    quadcopter_position = sim.getObjectPosition(target, -1)
+
+                    if i == 0:
+                        new_x = round(quadcopter_position[0] + mins[i])
+                        new_y = round(quadcopter_position[1])
+                    elif i == 1:
+                        new_y = round(quadcopter_position[1] + mins[i])
+                        new_x = round(quadcopter_position[0])
+                    elif i == 2:
+                        new_x = round(quadcopter_position[0] - mins[i])
+                        new_y = round(quadcopter_position[1])
+                    elif i == 3:
+                        new_y = round(quadcopter_position[1] - mins[i])
+                        new_x = round(quadcopter_position[0])
+                
+                    
+                    mins[i] = -1
+
+                    if not survivors.contains(new_x, new_y):
+
+                        #now check if there aren't any other survivors detected within 3 units of radius. if so, then don't add the survivor
+                        #this is to avoid multiple "ghost" survivors being detected at the same location
+                        survivor_detected = False
+                        survivor_area_radius = 3
+                        for dx in range(-survivor_area_radius, survivor_area_radius + 1):
+                            for dy in range(-survivor_area_radius, survivor_area_radius + 1):
+                                if survivors.contains(new_x + dx, new_y + dy):
+                                    survivor_detected = True
+                                    break
+                            if survivor_detected:
+                                break
+
+                        if not survivor_detected:
+                            survivors.add(new_x, new_y)
+                            print(f"New Survivor Added to HashMap - Location: {new_x}, {new_y}")
+
+
+                        #survivors.add(new_x, new_y)
+                        #print(f"New Survivor Added to HashMap - Location: {new_x}, {new_y}")
+                    else:
+                        print(f"Survivor Already Detected {i}: {new_x}, {new_y}")
+
+        if not analysing_proximity[i]:
+            if reds[i] > red_min_thres and reds[i] < red_max_thres:
+                analysing_proximity[i] = True
+
+    analysing_proximity_0, analysing_proximity_1, analysing_proximity_2, analysing_proximity_3 = analysing_proximity
+    count_0, count_1, count_2, count_3 = counts
+    min_0, min_1, min_2, min_3 = mins
             
     
 
