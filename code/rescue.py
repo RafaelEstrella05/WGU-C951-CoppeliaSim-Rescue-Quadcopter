@@ -14,12 +14,25 @@ def sysCall_init():
     y_min = -22.250
     y_max = 17.250
 
+    global wall_dist_threshold
+    wall_dist_threshold = 1
+
 
     global survivors
     
 
+    global sensor_names
+    sensor_names = ["Front", "Right", "Back", "Left"]
+
     global survivors
     survivors = {}
+
+    global trigger_values
+    trigger_values = [-1, -1, -1, -1] #this is for the red value that was chosen to trigger the proximity sensor to start analysing the proximity sensor values
+
+    global analyzation_duration
+    analyzation_duration = 15
+
     #variable that will be used to determine if the quadcopter is analysing the proximity sensor to determine the location of the survivor
     global analysing_proximity_0 
     analysing_proximity_0 = False
@@ -47,9 +60,7 @@ def sysCall_init():
 
     #thesholds for narrowing the search view of the vision sensors, to get more accurate and certain results
     global red_min_thres 
-    red_min_thres = 0.8
-    global red_max_thres 
-    red_max_thres = 6.0
+    red_min_thres = 8
 
     global copter_speed 
     copter_speed = 0.05
@@ -66,10 +77,10 @@ def sysCall_init():
 
     # Initialize Vision Graphs
     global graph, graph_1, graph_2, graph_3, graph_red, graph_red1, graph_red2, graph_red3
-    graph = sim.getObject('/VisionGraph')
-    graph_1 = sim.getObject('/VisionGraph[1]')
-    graph_2 = sim.getObject('/VisionGraph[2]')
-    graph_3 = sim.getObject('/VisionGraph[3]')
+    graph = sim.getObject('/Graphs/VisionGraph')
+    graph_1 = sim.getObject('/Graphs/VisionGraph[1]')
+    graph_2 = sim.getObject('/Graphs/VisionGraph[2]')
+    graph_3 = sim.getObject('/Graphs/VisionGraph[3]')
                             
 
     graph_red = sim.addGraphStream(graph, 'Vision Front', '-', 0, [1, 0, 0])   # Front sensor red
@@ -86,10 +97,10 @@ def sysCall_init():
     proximity_sensor3 = sim.getObject('/Quadcopter/Proximity_sensor[3]')  # Back sensor
 
     # Initialize Proximity Graphs
-    proximity_graph = sim.getObject('/ProximityGraph')
-    proximity_graph_1 = sim.getObject('/ProximityGraph[1]')
-    proximity_graph_2 = sim.getObject('/ProximityGraph[2]')
-    proximity_graph_3 = sim.getObject('/ProximityGraph[3]')
+    proximity_graph = sim.getObject('/Graphs/ProximityGraph')
+    proximity_graph_1 = sim.getObject('/Graphs/ProximityGraph[1]')
+    proximity_graph_2 = sim.getObject('/Graphs/ProximityGraph[2]')
+    proximity_graph_3 = sim.getObject('/Graphs/ProximityGraph[3]')
 
     proximity_stream = sim.addGraphStream(proximity_graph, 'Proximity Front', '-', 0, [0, 1, 0])   # Front sensor graph
     proximity_stream1 = sim.addGraphStream(proximity_graph_1, 'Proximity Left', '-', 0, [0, 1, 0])   # Left sensor graph
@@ -161,7 +172,8 @@ def sysCall_sensing():
 
     global survivors
     global red_min_thres
-    global red_max_thres
+    global sensor_names
+    global wall_dist_threshold
     
 
     # if survivors has not been initialized, then initialize it
@@ -229,43 +241,45 @@ def sysCall_sensing():
 
     for i in range(4):
         if analysing_proximity[i]:
+            #print(f"Analysing Proximity {i}: {counts[i]}")
             counts[i] += 1
 
-            if counts[i] < 15:
+
+            if counts[i] < analyzation_duration:
+                
                 if mins[i] == -1 and proximities[i] != 0:
                     mins[i] = proximities[i]
-                else:
+                else: 
+                    # if the proximity sensor value is less than the current minimum value, then update the minimum value
                     if proximities[i] < mins[i] and proximities[i] != 0:
                         mins[i] = proximities[i]
             else:
                 analysing_proximity[i] = False
                 counts[i] = 0
 
-                if mins[i] != -1 and mins[i] < 7:
+                if mins[i] != -1:
                     quadcopter_position = sim.getObjectPosition(target, -1)
 
                     if i == 0:
                         new_x = round(quadcopter_position[0] + mins[i])
                         new_y = round(quadcopter_position[1])
                     elif i == 1:
-                        new_y = round(quadcopter_position[1] + mins[i])
+                        new_y = round(quadcopter_position[1] - mins[i])
                         new_x = round(quadcopter_position[0])
                     elif i == 2:
                         new_x = round(quadcopter_position[0] - mins[i])
                         new_y = round(quadcopter_position[1])
                     elif i == 3:
-                        new_y = round(quadcopter_position[1] - mins[i])
+                        new_y = round(quadcopter_position[1] + mins[i])
                         new_x = round(quadcopter_position[0])
                 
                     
-                    mins[i] = -1
-
                     if not survivors.contains(new_x, new_y):
 
                         #now check if there aren't any other survivors detected within 3 units of radius. if so, then don't add the survivor
                         #this is to avoid multiple "ghost" survivors being detected at the same location
                         survivor_detected = False
-                        survivor_area_radius = 3
+                        survivor_area_radius = 2
                         for dx in range(-survivor_area_radius, survivor_area_radius + 1):
                             for dy in range(-survivor_area_radius, survivor_area_radius + 1):
                                 if survivors.contains(new_x + dx, new_y + dy):
@@ -276,18 +290,22 @@ def sysCall_sensing():
 
                         if not survivor_detected:
                             survivors.add(new_x, new_y)
-                            print(f"New Survivor Added to HashMap - Location: {new_x}, {new_y}")
+                            print(f"Survivor Added - Loc: ({new_x}, {new_y}) from {sensor_names[i]} sensor, prox: {mins[i]}, trig: {trigger_values[i]}, Pos: {quadcopter_position}")
+                        else:
+                            print(f"Survivor(s) Already Detected within the Area {i}: {new_x}, {new_y}")
 
-
-                        #survivors.add(new_x, new_y)
-                        #print(f"New Survivor Added to HashMap - Location: {new_x}, {new_y}")
                     else:
-                        print(f"Survivor Already Detected {i}: {new_x}, {new_y}")
+                        print(f"Survivor(s) Already Detected within the Area {i}: {new_x}, {new_y}")
+
+                    mins[i] = -1
 
         if not analysing_proximity[i]:
-            if reds[i] > red_min_thres and reds[i] < red_max_thres:
+            if reds[i] >= red_min_thres:
+
+                trigger_values[i] = reds[i]
                 analysing_proximity[i] = True
 
+    # Update global variables
     analysing_proximity_0, analysing_proximity_1, analysing_proximity_2, analysing_proximity_3 = analysing_proximity
     count_0, count_1, count_2, count_3 = counts
     min_0, min_1, min_2, min_3 = mins
