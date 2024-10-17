@@ -8,6 +8,10 @@ from hashlib import sha256
 def sysCall_init():
     sim = require('sim')
 
+
+    global manual_mode #moves by itself or moved by the user with wsad keys
+    manual_mode = True
+
     global x_min, x_max, y_min, y_max
     x_min = -37.250
     x_max = 2.250
@@ -161,19 +165,19 @@ def sysCall_actuation():
         position = sim.getObjectPosition(target, -1)
         #position[0] += 0.02
 
-        '''...'''
-        # Change position based on the orientation of the quadcopter
-        if copter_direction == 0:  # North
-            position[0] += copter_speed
-        elif copter_direction == 1:  # East
-            position[1] -= copter_speed
-        elif copter_direction == 2:  # South
-            position[0] -= copter_speed
-        elif copter_direction == 3:  # West
-            position[1] += copter_speed
-        
+        if not manual_mode:
+            # Change position based on the orientation of the quadcopter
+            if copter_direction == 0:  # North
+                position[0] += copter_speed
+            elif copter_direction == 1:  # East
+                position[1] -= copter_speed
+            elif copter_direction == 2:  # South
+                position[0] -= copter_speed
+            elif copter_direction == 3:  # West
+                position[1] += copter_speed
+            
 
-        sim.setObjectPosition(target, -1, position)
+            sim.setObjectPosition(target, -1, position)
         
     else:
         #print("Stopping movement. Proximity Distance (Front): ", proximity_distance)
