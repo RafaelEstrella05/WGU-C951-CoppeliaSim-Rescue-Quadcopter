@@ -1,4 +1,6 @@
-#vision sensor and proximity sensor script for the quadcopter
+from hashlib import sha256
+
+#script that controls the quadcopter to detect survivors of a flood disaster
 
 # dependencies: pyzmq, cbor2
 #py -m pip install pyzmq cbor2
@@ -6,6 +8,18 @@
 def sysCall_init():
     sim = require('sim')
 
+    global x_min, x_max, y_min, y_max
+    x_min = -37.250
+    x_max = 2.250
+    y_min = -22.250
+    y_max = 17.250
+
+
+    global survivors
+    
+
+    global survivors
+    survivors = {}
     #variable that will be used to determine if the quadcopter is analysing the proximity sensor to determine the location of the survivor
     global analysing_proximity_0 
     analysing_proximity_0 = False
@@ -31,7 +45,11 @@ def sysCall_init():
     count_2 = 0
     count_3 = 0
 
-
+    #thesholds for narrowing the search view of the vision sensors, to get more accurate and certain results
+    global red_min_thres 
+    red_min_thres = 0.8
+    global red_max_thres 
+    red_max_thres = 6.0
 
     global copter_speed 
     copter_speed = 0.05
@@ -141,6 +159,15 @@ def sysCall_actuation():
 
 def sysCall_sensing():
 
+    global survivors
+    global red_min_thres
+    global red_max_thres
+    
+
+    # if survivors has not been initialized, then initialize it
+    if not survivors:
+        survivors = HashMap()
+
     # Vision sensor code for front sensor
     result, packet1, packet2 = sim.readVisionSensor(vision)
     avg_red = packet1[11]
@@ -198,7 +225,7 @@ def sysCall_sensing():
         #print("Analysing Proximity Zero: ", count_0)
         count_0 += 1
 
-        if count_0 < 10:
+        if count_0 < 15:
             #print("Count Zero: ", count_0)
             #print("--min_0: ", min_0)
 
@@ -218,24 +245,28 @@ def sysCall_sensing():
         else:
             analysing_proximity_0 = False
             count_0 = 0
-            ###print("Final Proximity (Min_0): ", min_0)
+            #print("Final Proximity (Min_0): ", min_0)
 
             if min_0 != -1 and min_0 < 7:
                 #get the current position of the quadcopter
                 quadcopter_position = sim.getObjectPosition(target, -1)
                 #print("Quadcopter Position: ", quadcopter_position)
 
-                new_x = quadcopter_position[0] + min_0
-
+                new_x = round(quadcopter_position[0] + min_0)
+                new_y = round(quadcopter_position[1])
                 min_0 = -1
-                print("Survivor GPS Approximate Location Zero: ", new_x, ", ", quadcopter_position[1])
+                #print("Survivor GPS Approximate Location Zero: ", new_x, ", ", new_y)
 
-            
-            
+                #add the survivor to the hashmap if it is not already in the hashmap
+                if not survivors.contains(new_x, new_y):
+                    survivors.add(new_x, new_y)
+                    print("New Survivor Added to HashMap - Location: ", new_x, ", ", new_y)
+                else:
+                    print("Survivor Already Detected Zero: ", new_x, ", ", new_y)
 
     if not analysing_proximity_0:
         #print("Red Value 0: ", red);
-        if red > 1.5 and red < 4:
+        if red > red_min_thres and red < red_max_thres:
             #print("Potential Survivor Detected Zero, Scanning ...")
             analysing_proximity_0 = True
             
@@ -244,3 +275,36 @@ def sysCall_sensing():
 def sysCall_cleanup():
     # Clean-up code here
     pass
+
+#----------------------------------------------HASH MAP 
+class HashMap:
+    def __init__(self):
+        # Use a set to store the hashed values for quick lookup
+        self.map = set()
+
+    # Hash function to create a unique key from x, y coordinates
+    def _hash(self, x, y):
+        return hash((x, y))
+
+    # Method to add (x, y) coordinates to the HashMap
+    def add(self, x, y):
+        hashed_value = self._hash(x, y)
+        if hashed_value not in self.map:
+            self.map.add(hashed_value)
+            return True  # Indicates the pair was added successfully
+        return False  # Indicates the pair was already in the map
+
+    # Method to check if (x, y) coordinates are already in the HashMap
+    def contains(self, x, y):
+        return self._hash(x, y) in self.map
+
+    # Method to remove (x, y) coordinates from the HashMap (optional)
+    def remove(self, x, y):
+        hashed_value = self._hash(x, y)
+        if hashed_value in self.map:
+            self.map.remove(hashed_value)
+            return True  # Indicates the pair was removed successfully
+        return False  # Indicates the pair was not in the map
+
+# Example Usage:
+#hash_map = HashMap()
