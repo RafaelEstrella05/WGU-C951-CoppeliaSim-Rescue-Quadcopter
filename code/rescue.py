@@ -41,8 +41,8 @@ def sysCall_init():
     #keeps track of the grid index
     global grid_x_index
     global grid_y_index
-    grid_x_index = 0
-    grid_y_index = 0
+    grid_x_index = 4
+    grid_y_index = 6
 
     #initialize the map target position to the location where the grid_x_index and grid_y_index are (use the grid_size to determine the position)
     x_offset = x_min + grid_x_index * grid_size
@@ -62,13 +62,16 @@ def sysCall_init():
     global grid
     grid = create_grid(x_min, x_max, y_min, y_max, grid_size)
 
+    #print grid dimensions x and y
+    print("Grid Dimensions: ", len(grid), len(grid[0]))
+
     #print_grid(grid)
 
     #example usage of grid, to set a grid cell as visited
     #grid[(x, y)] = 1  # 1 means visited, 0 means unvisited, -1 means obstacle
 
     global hit_threshold
-    hit_threshold = 0.05
+    hit_threshold = 0.01
 
     global survivors
     
@@ -115,7 +118,7 @@ def sysCall_init():
     red_min_thres = 8
 
     global copter_speed 
-    copter_speed = 0.10
+    copter_speed = 0.05
 
     global copter_direction
     copter_direction = 0  # initialize the direction of the quadcopter to north, 0 = North, 1 = East, 2 = South, 3 = West
@@ -209,14 +212,6 @@ def sysCall_actuation():
     #print distance to compare
     #print("Distance to Compare: ", distance_to_compare[copter_direction])
 
-    #is_target_within = is_target_within_bounds(sim.getObjectPosition(target, -1)[0], sim.getObjectPosition(target, -1)[1])
-
-    # if the quadcopter target position is at the map target position(or within margin), then select the next target depending on the direction of the quadcopter
-    # if the direction is front, select the target 1 unit in the x direction
-    # if the direction is right, select the target 1 unit in the y direction negatively
-    # if the direction is back, select the target 1 unit in the x direction negatively
-    # if the direction is left, select the target 1 unit in the y direction
-
     target_position = sim.getObjectPosition(target, -1)
     map_target_position = sim.getObjectPosition(map_target, -1)
 
@@ -226,55 +221,61 @@ def sysCall_actuation():
     abs_diff_x = abs(int(round(target_position[0])) - int(round(map_target_position[0])))
     abs_diff_y = abs(int(round(target_position[1])) - int(round(map_target_position[1])))
     #print("Abs Diff X: ", abs_diff_x, ", Abs Diff Y: ", abs_diff_y)
-    print("Index: ", grid_x_index, ", ", grid_y_index)
+    #print("Index: ", grid_x_index, ", ", grid_y_index)
     
     # if the quadcopter target position is at the map target position, then select the next target depending on the direction of the quadcopter
     if abs_diff_x <= hit_threshold and abs_diff_y <= hit_threshold:
         print("Target Position Reached")
 
-        obstacle_detected = distance_to_compare[copter_direction] != 0 and distance_to_compare[copter_direction] < 3
+        obstacle_detected = distance_to_compare[copter_direction] != 0 and distance_to_compare[copter_direction] < grid_size + 2
+
+        hyp_grid_x_index = grid_x_index + 0 #hypothetical grid x index
+        hyp_grid_y_index = grid_y_index + 0 #hypothetical grid y index
 
         # if the new target position is within bounds and there are no obstacles detected, then set the new target position
         if not obstacle_detected:
             # print no obstacle detected
             print("No Obstacle Detected")
 
-            #update the grid index x and y
-            if copter_direction == 0 and grid_x_index + 1 < len(grid):
-                grid_x_index += 1
-            elif copter_direction == 1 and grid_y_index - 1 >= 0:
-                grid_y_index -= 1
-            elif copter_direction == 2 and grid_x_index - 1 >= 0:
-                grid_x_index -= 1
-            elif copter_direction == 3 and grid_y_index + 1 < len(grid[0]):
-                grid_y_index += 1
 
-            grid_cell = grid[grid_x_index][grid_y_index]
+            #update the grid index x and y, keep the indexes within bounds
+            if copter_direction == 0 and hyp_grid_x_index + 1 < len(grid):
+                hyp_grid_x_index += 1
+                print("Updated X Hyp Index By 1: ", hyp_grid_x_index,", New Grid Index: ", hyp_grid_x_index, ", ", hyp_grid_y_index)
+            elif copter_direction == 1 and hyp_grid_y_index - 1 >= 0:
+                hyp_grid_y_index -= 1
+                print("Updated Y Hyp Index By -1: ", hyp_grid_y_index, ", New Grid Index: ", hyp_grid_x_index, ", ", hyp_grid_y_index)
+            elif copter_direction == 2 and hyp_grid_x_index - 1 >= 0:
+                hyp_grid_x_index -= 1
+                print("Updated X Hyp Index By -1: ", hyp_grid_x_index, ", New Grid Index: ", hyp_grid_x_index, ", ", hyp_grid_y_index)
+            elif copter_direction == 3 and hyp_grid_y_index + 1 < len(grid[0]):
+                hyp_grid_y_index += 1
+                print("Updated Y Hyp Index By 1: ", hyp_grid_y_index, ", New Grid Index: ", hyp_grid_x_index, ", ", hyp_grid_y_index)
 
-            print("Grid Cell: ", grid_cell)
+            hyp_grid_cell = grid[hyp_grid_x_index][hyp_grid_y_index] #hypothetical grid cell
+
+            print("Grid Cell: ", hyp_grid_cell)
 
             #if the new position has already been visited, then change the direction of the quadcopter to the next direction clockwise
-            if grid_cell['status'] == 1 or grid_cell['status'] == -1:
-
-                if grid_cell['status'] == -1:
-                    copter_direction = (copter_direction + 1) % 4
-                    print("point is an obstacle already, changing direction")
-                elif grid_cell['status'] == 1:
-                    print("point has been visited already, finding the nearest unvisited point")
-
-                    copter_direction = (copter_direction + 1) % 4
-                
-                print("point is an obstacle or has been visited")
+            if hyp_grid_cell['status'] == -1:
+                copter_direction = (copter_direction + 1) % 4
+                print("point is an obstacle")
                 print("New Direction: ", copter_direction)
-            elif grid_cell['status'] == 0:
+            elif hyp_grid_cell['status'] == 1:
+
+                copter_direction = (copter_direction + 1) % 4
+                
+                print("point has been visited")
+                print("New Direction: ", copter_direction)
+            elif hyp_grid_cell['status'] == 0:
                 print("point hasn't been visited yet")
                 
                 #set the grid cell as visited
-                grid[grid_x_index][grid_y_index]['status'] = 1
+                grid[hyp_grid_x_index][hyp_grid_y_index]['status'] = 1
 
                 new_target_position = [
-                    grid_cell['coordinates'][0],
-                    grid_cell['coordinates'][1],
+                    hyp_grid_cell['coordinates'][0],
+                    hyp_grid_cell['coordinates'][1],
                     4
                 ]
                 
@@ -282,28 +283,31 @@ def sysCall_actuation():
                 # Set new position of the map target
                 sim.setObjectPosition(map_target, -1, new_target_position)
 
+                #set new index of the grid
+                grid_x_index = hyp_grid_x_index + 0
+                grid_y_index = hyp_grid_y_index + 0
+
             else:
-                print("else --- Cell value: ", grid_cell['status'])
+                #print no recognized status
+                print("No Recognized Status: ", hyp_grid_cell['status'])
             
 
         else:          
             print("Obstacle Detected")  
 
             #mark the grid cell as an obstacle
-            grid[grid_x_index][grid_y_index]['status'] = -1
+            grid[hyp_grid_x_index][hyp_grid_y_index]['status'] = -1
             
             #change the direction of the quadcopter to the next direction clockwise
             copter_direction = (copter_direction + 1) % 4
 
             
 
-            print("New Direction: ", copter_direction)
-
-
+            print("New Direction: (Obstacle Detected)", copter_direction)
 
 
     else:
-        print("Moving to Target Position")
+        #print("Moving to Target Position")
 
         #move the quadcopter to the map target position by the copter_speed
         new_quad_position = sim.getObjectPosition(target, -1)
