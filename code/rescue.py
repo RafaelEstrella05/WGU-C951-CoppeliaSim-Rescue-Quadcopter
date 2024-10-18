@@ -301,12 +301,10 @@ def sysCall_actuation():
         if not found_unvisited:
             print("No Possible Directions to Move, Backtracking")
             if position_stack:
-                # pop the last position from the stack (this is the current position)
-                position_stack.pop()
+                # pop the last position from the stack
+                last_position = position_stack.pop()
 
                 if position_stack:
-                    # get the last position from the stack again to get the last position
-                    last_position = position_stack.pop()
 
                     # update the grid_x_index and grid_y_index to the last position
                     grid_x_index = last_position[0]
