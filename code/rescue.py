@@ -1,5 +1,4 @@
 from hashlib import sha256
-import keyboard
 
 #script that controls the quadcopter to detect survivors of a flood disaster
 
@@ -25,7 +24,7 @@ def sysCall_init():
     red_min_thres = 8
 
     global copter_speed 
-    copter_speed = 0.05
+    copter_speed = 0.10
 
     global copter_direction
     copter_direction = 0  # initialize the direction of the quadcopter to north, 0 = North, 1 = East, 2 = South, 3 = West
@@ -81,9 +80,7 @@ def sysCall_init():
     #grid[(x, y)] = 1  # 1 means visited, 0 means unvisited, -1 means obstacle
 
     global hit_threshold
-    hit_threshold = 0.01
-
-    
+    hit_threshold = 0.5
     
 
     global survivors
@@ -98,7 +95,7 @@ def sysCall_init():
     global trigger_values
     trigger_values = [-1, -1, -1, -1] #this is for the red value that was chosen to trigger the proximity sensor to start analysing the proximity sensor values
 
-    global analyzation_duration
+    global analyzation_duration #how long the proximity sensor will be analysing the proximity sensor values after the vision sensor trigger value has been detected
     analyzation_duration = 15
 
     #variable that will be used to determine if the quadcopter is analysing the proximity sensor to determine the location of the survivor
@@ -214,18 +211,17 @@ def sysCall_actuation():
     target_position = sim.getObjectPosition(target, -1)
     map_target_position = sim.getObjectPosition(map_target, -1)
 
-    abs_diff_x = abs(int(round(target_position[0])) - int(round(map_target_position[0])))
-    abs_diff_y = abs(int(round(target_position[1])) - int(round(map_target_position[1])))
+    abs_diff_x = abs(int(round(sim.getObjectPosition(quadcopter, -1)[0])) - int(round(map_target_position[0])))
+    abs_diff_y = abs(int(round(sim.getObjectPosition(quadcopter, -1)[1])) - int(round(map_target_position[1])))
     
     # if the quadcopter target position is at the map target position, then select the next target depending on the direction of the quadcopter
     if abs_diff_x <= hit_threshold and abs_diff_y <= hit_threshold:
-        print("Target Position Reached")
-
+        #print("Target Position Reached")
         dir_update_count = 0
         hyp_direction = copter_direction + 0;
 
         # print current index of the quadcopter
-        print("Current Index: ", grid_x_index, grid_y_index)
+        #print("Current Index: ", grid_x_index, grid_y_index)
 
         found_unvisited = False #the goal is to find an unvisited cell to move to
 
@@ -259,28 +255,20 @@ def sysCall_actuation():
                 dir_update_count += 1
                 continue
 
-            if grid[hyp_x_index][hyp_y_index]['status'] == -1:
-                hyp_direction = (hyp_direction + 1) % 4
-                dir_update_count += 1
-
-                #mark the grid cell as an obstacle
-                grid[hyp_x_index][hyp_y_index]['status'] = -1
-
-                continue
-
             #if the hypothetical location is unvisited, then move the quadcopter to the hypothetical location
             if grid[hyp_x_index][hyp_y_index]['status'] == 0:
                     
                 found_unvisited = True
 
-                print("Moving to Hypothetical Position: ", hyp_x_index, hyp_y_index)
+                #push the current position to the stack
+                position_stack.append((grid_x_index, grid_y_index))
+
+                #print("Moving to Position: ", hyp_x_index, hyp_y_index)
 
                 #update the grid_x_index and grid_y_index to the hypothetical index
                 grid_x_index = hyp_x_index + 0
                 grid_y_index = hyp_y_index + 0
 
-                #push the current position to the stack
-                position_stack.append((grid_x_index, grid_y_index))
 
                 #mark the grid cell as visited
                 grid[hyp_x_index][hyp_y_index]['status'] = 1
@@ -293,35 +281,43 @@ def sysCall_actuation():
                 ]
 
                 sim.setObjectPosition(map_target, -1, new_target_position)
+
+                #print moving to position and include the sensor reading for the proximity sensor and which direction the quadcopter is moving
+                print(f"Moving to Position: ({hyp_x_index}, {hyp_y_index}), Prox: {distance_to_compare[hyp_direction]}, Dir: {sensor_names[hyp_direction]}, Stack Top: {position_stack[-1]}")
+
+
                 break;
 
                 
 
         #if all directions are either visited or have obstacles, then back track to the previous position
         if not found_unvisited:
-            print("No Possible Directions to Move, Backtracking")
+            #print("No Possible Directions to Move, Backtracking")
+
+            #print("Backtracking, Stack Size: ", len(position_stack))
+
             if position_stack:
+                print(f"Backtracking to Position: ({grid_x_index}, {grid_y_index}), ", " Stack Size: ", len(position_stack), ", Stack Top: ", position_stack[-1])
+
                 # pop the last position from the stack
                 last_position = position_stack.pop()
 
-                if position_stack:
+                # update the grid_x_index and grid_y_index to the last position
+                grid_x_index = last_position[0]
+                grid_y_index = last_position[1]
 
-                    # update the grid_x_index and grid_y_index to the last position
-                    grid_x_index = last_position[0]
-                    grid_y_index = last_position[1]
+                # move the map target to the new target position
+                new_target_position = [
+                    grid[grid_x_index][grid_y_index]['coordinates'][0],
+                    grid[grid_x_index][grid_y_index]['coordinates'][1],
+                    4
+                ]
 
-                    # move the map target to the new target position
-                    new_target_position = [
-                        grid[grid_x_index][grid_y_index]['coordinates'][0],
-                        grid[grid_x_index][grid_y_index]['coordinates'][1],
-                        4
-                    ]
+                sim.setObjectPosition(map_target, -1, new_target_position)
 
-                    sim.setObjectPosition(map_target, -1, new_target_position)
-                else:
-                    print("Rescue operation complete. No more positions to backtrack.")
+
             else:
-                print("Rescue operation complete. No more positions to backtrack.")
+                    print("Rescue operation complete. No more positions to backtrack.")
             
             
 
