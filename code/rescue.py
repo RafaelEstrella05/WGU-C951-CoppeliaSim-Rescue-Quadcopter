@@ -24,7 +24,7 @@ def sysCall_init():
     red_min_thres = 8
 
     global copter_speed 
-    copter_speed = 0.10
+    copter_speed = 0.05
 
     global copter_direction
     copter_direction = 0  # initialize the direction of the quadcopter to north, 0 = North, 1 = East, 2 = South, 3 = West
@@ -80,7 +80,7 @@ def sysCall_init():
     #grid[(x, y)] = 1  # 1 means visited, 0 means unvisited, -1 means obstacle
 
     global hit_threshold
-    hit_threshold = 0.5
+    hit_threshold = 0.2
     
 
     global survivors
@@ -315,9 +315,12 @@ def sysCall_actuation():
 
                 sim.setObjectPosition(map_target, -1, new_target_position)
 
+                if not position_stack:
+                    print("No More Unvisited Cells to Move To, Mission Complete")
 
-            else:
-                    print("Rescue operation complete. No more positions to backtrack.")
+
+            
+                    
             
             
 
