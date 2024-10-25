@@ -1,8 +1,7 @@
-from hashlib import sha256
 
-#script that controls the quadcopter to detect survivors of a flood disaster
+#script that controls the quadcopter to detect and report people trapped in a flood disaster
 
-# Create grid dimensions based on environment size
+# Create grid dimensions based on given x, y min and max values
 def create_grid(x_min, x_max, y_min, y_max, grid_size):
     x_range = int((x_max - x_min) // grid_size) + 1
     y_range = int((y_max - y_min) // grid_size) + 1
@@ -10,7 +9,7 @@ def create_grid(x_min, x_max, y_min, y_max, grid_size):
     return grid
  
 
-#checks if the x and y index are out of bounds
+#checks if the x and y index of the coordinate grid are out of bounds
 def check_if_out_of_bounds(x, y):
     return x < 0 or y < 0 or x >= len(grid) or y >= len(grid[0])
 
@@ -18,6 +17,7 @@ def check_if_out_of_bounds(x, y):
 ##----------------------------------------------INITIALIZATION----------------------------------------------##
 def sysCall_init():
     sim = require('sim')
+    
 
     #thesholds for narrowing the search view of the vision sensors, to get more accurate and certain results
     global red_min_thres 
@@ -27,64 +27,63 @@ def sysCall_init():
     copter_speed = 0.05
 
     global copter_direction
-    copter_direction = 0  # initialize the direction of the quadcopter to north, 0 = North, 1 = East, 2 = South, 3 = West
+    copter_direction = 0  # initialize the direction of the quadcopter to north, 0 = Front, 1 = Right, 2 = Back, 3 = Left
     
+    #initialize coodinate walls for the environment (taken from scene environment coodinates)
     global x_min, x_max, y_min, y_max
     x_min = -37.250
     x_max = 2.250
     y_min = -22.250
     y_max = 17.250
 
-    #MapTarget (sphere) used to select where the quadcopter target should go to
+    #MapTarget used to select and visualize where the quadcopter target will go to next
     global map_target
     map_target = sim.getObject('/MapTarget')
 
     global quadcopter
     quadcopter = sim.getObject('/Quadcopter')
 
+    #the length of each grid cell relative to the environment (used to break down the environment into smaller grid cells)
     global grid_size
     grid_size = 3.0
 
-    #keeps track of the grid index
+    # the index of the location of the map target in the grid
     global grid_x_index
     global grid_y_index
 
-    #get the x y location of the qudcopter and snap it to the nearest grid cell
+    #get the x y location of the qudcopter and snap the coodinates to the nearest grid cell (allows the user to move the quadcopter around in the 3d scene environment to test out different starting positions)
     quadcopter_position = sim.getObjectPosition(quadcopter, -1)
     grid_x_index = int((quadcopter_position[0] - x_min) // grid_size)
     grid_y_index = int((quadcopter_position[1] - y_min) // grid_size)
 
-    #position stack to keep track of the quadcopter's position and back track if necessary
-    global position_stack
-    position_stack = []
-
-    #push the quadcopter's index positions to the stack
-    position_stack.append((grid_x_index, grid_y_index))
-
-    #initialize the map target position to the location where the grid_x_index and grid_y_index are (use the grid_size to determine the position)
-    x_offset = x_min + grid_x_index * grid_size
-    y_offset = y_min + grid_y_index * grid_size
-    sim.setObjectPosition(map_target, -1, [x_offset, y_offset, 4])
-
-    #intialize the quadcopter position to the map target position 
-    sim.setObjectPosition(map_target, -1, sim.getObjectPosition(quadcopter, -1))
-
-  # You can adjust the size of each grid cell based on your requirements
+    
+    #coordinate grid that will be used to keep track of the visited and unvisited cells in the environment
     global grid
     grid = create_grid(x_min, x_max, y_min, y_max, grid_size)
 
     #now mark the grid cell as visited
     grid[grid_x_index][grid_y_index]['status'] = 1
 
+    #initialize the map target position to the location where the grid_x_index and grid_y_index are (use the grid_size to determine the position)
+    x_offset = x_min + grid_x_index * grid_size
+    y_offset = y_min + grid_y_index * grid_size
+    sim.setObjectPosition(map_target, -1, [x_offset, y_offset, 4])
+
+    #keep track of the quadcopter's position and back track if no more unvisited cells are available at any direction within the current position
+    global position_stack
+    position_stack = []
+
+    #push the quadcopter's index positions to the stack
+    position_stack.append((grid_x_index, grid_y_index))
+
+    #initialize the map target position to the quadcopter's position
+    sim.setObjectPosition(map_target, -1, sim.getObjectPosition(quadcopter, -1))
+
     #example usage of grid, to set a grid cell as visited
     #grid[(x, y)] = 1  # 1 means visited, 0 means unvisited, -1 means obstacle
 
     global hit_threshold
     hit_threshold = 0.2
-    
-
-    global survivors
-    
 
     global sensor_names
     sensor_names = ["Front", "Right", "Back", "Left"]
@@ -93,23 +92,17 @@ def sysCall_init():
     survivors = {}
 
     global trigger_values
-    trigger_values = [-1, -1, -1, -1] #this is for the red value that was chosen to trigger the proximity sensor to start analysing the proximity sensor values
+    trigger_values = [-1, -1, -1, -1] #used to capture the red value of the vision sensor when a survivor is detected
 
-    global analyzation_duration #how long the proximity sensor will be analysing the proximity sensor values after the vision sensor trigger value has been detected
+    global analyzation_duration # of iterations that the proximity sensor will be analysing the proximity sensor values after the vision sensor trigger value has been detected
     analyzation_duration = 15
 
     #variable that will be used to determine if the quadcopter is analysing the proximity sensor to determine the location of the survivor
-    global analysing_proximity_0 
-    analysing_proximity_0 = False
-
-    global analysing_proximity_1
-    analysing_proximity_1 = False
-
-    global analysing_proximity_2
-    analysing_proximity_2 = False
-
-    global analysing_proximity_3
-    analysing_proximity_3 = False
+    global min_proximity_mode_0, min_proximity_mode_1, min_proximity_mode_2, min_proximity_mode_3
+    min_proximity_mode_0 = False
+    min_proximity_mode_1 = False
+    min_proximity_mode_2 = False
+    min_proximity_mode_3 = False
 
     global min_0, min_1, min_2, min_3
     min_0 = -1
@@ -124,7 +117,6 @@ def sysCall_init():
     count_3 = 0
 
 
-
     # Initialize Vision Sensors
     global vision, vision1, vision2, vision3
     vision = sim.getObject('/Quadcopter/Vision_sensor')
@@ -137,8 +129,7 @@ def sysCall_init():
     graph = sim.getObject('/Graphs/VisionGraph')
     graph_1 = sim.getObject('/Graphs/VisionGraph[1]')
     graph_2 = sim.getObject('/Graphs/VisionGraph[2]')
-    graph_3 = sim.getObject('/Graphs/VisionGraph[3]')
-                            
+    graph_3 = sim.getObject('/Graphs/VisionGraph[3]')        
 
     graph_red = sim.addGraphStream(graph, 'Vision Front Red', '-', 0, [1, 0, 0])   # Front sensor red
     graph_red1 = sim.addGraphStream(graph_1, 'Vision Left Red', '-', 0, [1, 0, 0])   # Left sensor red
@@ -158,8 +149,6 @@ def sysCall_init():
     graph_blue1 = sim.addGraphStream(graph_1, 'Vision Left Blue', '-', 0, [0, 0, 1])   # Left sensor blue
     graph_blue2 = sim.addGraphStream(graph_2, 'Vision Right Blue', '-', 0, [0, 0, 1])  # Right sensor blue
     graph_blue3 = sim.addGraphStream(graph_3, 'Vision Back Blue', '-', 0, [0, 0, 1])   # Back sensor blue
-
-
 
     # Initialize Proximity Sensors
     global proximity_sensor, proximity_sensor1, proximity_sensor2, proximity_sensor3
@@ -205,20 +194,18 @@ def sysCall_actuation():
     proximity_result3 = sim.readProximitySensor(proximity_sensor3)
     proximity_distance3 = proximity_result3[1] if proximity_result3[0] > 0 else 0
 
-
     distance_to_compare = [proximity_distance, proximity_distance1, proximity_distance2, proximity_distance3]
 
-    target_position = sim.getObjectPosition(target, -1)
     map_target_position = sim.getObjectPosition(map_target, -1)
 
     abs_diff_x = abs(int(round(sim.getObjectPosition(quadcopter, -1)[0])) - int(round(map_target_position[0])))
     abs_diff_y = abs(int(round(sim.getObjectPosition(quadcopter, -1)[1])) - int(round(map_target_position[1])))
     
-    # if the quadcopter target position is at the map target position, then select the next target depending on the direction of the quadcopter
+    # if the quadcopter target position is at the map target position, then try to select the next unvisited cell to move to
     if abs_diff_x <= hit_threshold and abs_diff_y <= hit_threshold:
         #print("Target Position Reached")
         dir_update_count = 0
-        hyp_direction = copter_direction + 0;
+        hyp_direction = copter_direction + 0; #hypothetical direction that the quadcopter could move to
 
         # print current index of the quadcopter
         #print("Current Index: ", grid_x_index, grid_y_index)
@@ -231,6 +218,7 @@ def sysCall_actuation():
             hyp_x_index = grid_x_index + 0
             hyp_y_index = grid_y_index + 0
 
+            #update the hypothetical index based on the hypothetical direction
             if hyp_direction == 0 :
                 hyp_x_index += 1
             elif hyp_direction == 1:
@@ -246,7 +234,7 @@ def sysCall_actuation():
             #first thing to check if the hypothetical index is out of bounds
             out_of_bounds = check_if_out_of_bounds(hyp_x_index, hyp_y_index)
 
-            #check if there is an obstacle in the hypothetical direction
+            #check if there is an obstacle in front of the hypothetical direction
             obstacle_detected = distance_to_compare[hyp_direction] != 0 and distance_to_compare[hyp_direction] < grid_size + 2
 
             #if the hypothetical location is out of bounds, or has an obstacle, or has already been visited, then change the direction of the quadcopter to the next direction clockwise
@@ -255,7 +243,7 @@ def sysCall_actuation():
                 dir_update_count += 1
                 continue
 
-            #if the hypothetical location is unvisited, then move the quadcopter to the hypothetical location
+            #if the hypothetical location is unvisited, then move the map target to the hypothetical location so that the quadcopter can start moving to that location
             if grid[hyp_x_index][hyp_y_index]['status'] == 0:
                     
                 found_unvisited = True
@@ -265,10 +253,9 @@ def sysCall_actuation():
 
                 #print("Moving to Position: ", hyp_x_index, hyp_y_index)
 
-                #update the grid_x_index and grid_y_index to the hypothetical index
+                #update the grid_x_index and grid_y_index to the previously hypothetical index
                 grid_x_index = hyp_x_index + 0
                 grid_y_index = hyp_y_index + 0
-
 
                 #mark the grid cell as visited
                 grid[hyp_x_index][hyp_y_index]['status'] = 1
@@ -282,10 +269,9 @@ def sysCall_actuation():
 
                 sim.setObjectPosition(map_target, -1, new_target_position)
 
-                #print moving to position and include the sensor reading for the proximity sensor and which direction the quadcopter is moving
-                print(f"Moving to Position: ({hyp_x_index}, {hyp_y_index}), Prox: {distance_to_compare[hyp_direction]}, Dir: {sensor_names[hyp_direction]}, Stack Top: {position_stack[-1]}")
-
-
+                #print moving to coordinates
+                print(f"Moving to Position: ({grid[hyp_x_index][hyp_y_index]['coordinates'][0]}, {grid[hyp_x_index][hyp_y_index]['coordinates'][1]}), Prox: {round(distance_to_compare[hyp_direction], 2)}, Dir: {sensor_names[hyp_direction]}, Stack Size: {len(position_stack)}")
+                
                 break;
 
                 
@@ -297,7 +283,8 @@ def sysCall_actuation():
             #print("Backtracking, Stack Size: ", len(position_stack))
 
             if position_stack:
-                print(f"Backtracking to Position: ({grid_x_index}, {grid_y_index}), ", " Stack Size: ", len(position_stack), ", Stack Top: ", position_stack[-1])
+                #print(f"Backtracking to Position: ({grid_x_index}, {grid_y_index}), ", " Stack Size: ", len(position_stack), ", Stack Top: ", position_stack[-1])
+                print(f"Backtracking to Position: ({grid[grid_x_index][grid_y_index]['coordinates'][0]}, {grid[grid_x_index][grid_y_index]['coordinates'][1]}), Stack Size: {len(position_stack)}")
 
                 # pop the last position from the stack
                 last_position = position_stack.pop()
@@ -316,14 +303,7 @@ def sysCall_actuation():
                 sim.setObjectPosition(map_target, -1, new_target_position)
 
                 if not position_stack:
-                    print("No More Unvisited Cells to Move To, Mission Complete")
-
-
-            
-                    
-            
-            
-
+                    print("MISSION COMPLETE: No More Unvisited Cells to Move To")
        
     else:
         #print("Moving to Target Position")
@@ -334,10 +314,6 @@ def sysCall_actuation():
         new_quad_position[1] = new_quad_position[1] + copter_speed if new_quad_position[1] < map_target_position[1] else new_quad_position[1] - copter_speed if new_quad_position[1] > map_target_position[1] else new_quad_position[1]
         sim.setObjectPosition(target, -1, new_quad_position)
 
-
-
-def is_target_within_bounds(x, y):
-    return x_min <= x <= x_max and y_min <= y <= y_max
 
 def sysCall_sensing():
 
@@ -412,15 +388,11 @@ def sysCall_sensing():
     sim.setGraphStreamValue(proximity_graph_3, proximity_stream3, proximity_distance3)
 
 
-    #Want to now detect survivors and pin their location by using the vision sensor to detect the color red (symbolizes survivor detection) location of the quadcopter plus the value of the proximity sensor
-    #If the red value is greater than 0.5, then we have detected a survivor
-    #record the proximity sensor value for x iterations, and find the minimum value of the proximity sensor to determine the location of the survivor
-
-    global analysing_proximity_0, analysing_proximity_1, analysing_proximity_2, analysing_proximity_3
+    global min_proximity_mode_0, min_proximity_mode_1, min_proximity_mode_2, min_proximity_mode_3
     global count_0, count_1, count_2, count_3
     global min_0, min_1, min_2, min_3
 
-    analysing_proximity = [analysing_proximity_0, analysing_proximity_1, analysing_proximity_2, analysing_proximity_3]
+    min_proximity_mode = [min_proximity_mode_0, min_proximity_mode_1, min_proximity_mode_2, min_proximity_mode_3]
     counts = [count_0, count_1, count_2, count_3]
     mins = [min_0, min_1, min_2, min_3]
     proximities = [proximity_distance, proximity_distance1, proximity_distance2, proximity_distance3]
@@ -428,12 +400,13 @@ def sysCall_sensing():
     greens = [green, green1, green2, green3]
     blues = [blue, blue1, blue2, blue3]
 
+    # for every direction, check if the vision sensor has detected a survivor
     for i in range(4):
-        if analysing_proximity[i]:
+        if min_proximity_mode[i]:
             #print(f"Analysing Proximity {i}: {counts[i]}")
             counts[i] += 1
 
-
+            # give the proximity sensor some time to analyse the proximity sensor values to determine the smallest proximity value (mitigates false positives)
             if counts[i] < analyzation_duration:
                 
                 if mins[i] == -1 and proximities[i] != 0:
@@ -443,7 +416,7 @@ def sysCall_sensing():
                     if proximities[i] < mins[i] and proximities[i] != 0:
                         mins[i] = proximities[i]
             else:
-                analysing_proximity[i] = False
+                min_proximity_mode[i] = False
                 counts[i] = 0
 
                 if mins[i] != -1:
@@ -465,8 +438,8 @@ def sysCall_sensing():
                     
                     if not survivors.contains(new_x, new_y):
 
-                        #now check if there aren't any other survivors detected within 3 units of radius. if so, then don't add the survivor
-                        #this is to avoid multiple "ghost" survivors being detected at the same location
+                        #now check if there aren't any other survivors detected within x units of radius. if so, then don't add the survivor
+                        # this is to prevent the same survivor from being detected multiple times because of slight variations in the sensor values
                         survivor_detected = False
                         survivor_area_radius = 2
                         for dx in range(-survivor_area_radius, survivor_area_radius + 1):
@@ -479,7 +452,10 @@ def sysCall_sensing():
 
                         if not survivor_detected:
                             survivors.add(new_x, new_y)
-                            print(f"Survivor Added - Loc: ({new_x}, {new_y}) from {sensor_names[i]} sensor, prox: {mins[i]}, trig: {trigger_values[i]}, Pos: {quadcopter_position}")
+                            #print(f"Survivor Added - Loc: ({new_x}, {new_y}) from {sensor_names[i]} sensor, prox: {mins[i]}, trig: {trigger_values[i]}, Pos: {quadcopter_position}")
+
+                            #print survivor found at coordinates x, y
+                            print(f"--------------Survivor Found at Coordinates: ({new_x}, {new_y}) from {sensor_names[i]} sensor, Prox: {round(mins[i], 2)}, Trig: {round(trigger_values[i], 2)}--------------")
                         else:
                             print(f"Survivor(s) Already Detected within the Area {i}: {new_x}, {new_y}")
 
@@ -488,18 +464,20 @@ def sysCall_sensing():
 
                     mins[i] = -1
 
-        if not analysing_proximity[i]:
-            if reds[i] >= red_min_thres and greens[i] < reds[i] * 0.5 and blues[i] < reds[i] * 0.5:
+        if not min_proximity_mode[i]:
+
+            if is_red_detected(reds[i], greens[i], blues[i]):
 
                 trigger_values[i] = reds[i]
-                analysing_proximity[i] = True
+                min_proximity_mode[i] = True
 
     # Update global variables
-    analysing_proximity_0, analysing_proximity_1, analysing_proximity_2, analysing_proximity_3 = analysing_proximity
+    min_proximity_mode_0, min_proximity_mode_1, min_proximity_mode_2, min_proximity_mode_3 = min_proximity_mode
     count_0, count_1, count_2, count_3 = counts
     min_0, min_1, min_2, min_3 = mins
             
-    
+def is_red_detected(red, green, blue):
+    return red >= red_min_thres and green < red * 0.5 and blue < red * 0.5
 
 def sysCall_cleanup():
     # Clean-up code here
@@ -511,11 +489,11 @@ class HashMap:
         # Use a set to store the hashed values for quick lookup
         self.map = set()
 
-    # Hash function to create a unique key from x, y coordinates
+    # create a unique key from x, y coordinates
     def _hash(self, x, y):
         return hash((x, y))
 
-    # Method to add (x, y) coordinates to the HashMap
+    # add (x, y) coordinates to the HashMap
     def add(self, x, y):
         hashed_value = self._hash(x, y)
         if hashed_value not in self.map:
@@ -523,11 +501,11 @@ class HashMap:
             return True  # Indicates the pair was added successfully
         return False  # Indicates the pair was already in the map
 
-    # Method to check if (x, y) coordinates are already in the HashMap
+    # check if (x, y) coordinates are already in the HashMap
     def contains(self, x, y):
         return self._hash(x, y) in self.map
 
-    # Method to remove (x, y) coordinates from the HashMap (optional)
+    # remove (x, y) coordinates from the HashMap (optional)
     def remove(self, x, y):
         hashed_value = self._hash(x, y)
         if hashed_value in self.map:
